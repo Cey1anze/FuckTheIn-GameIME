@@ -1,100 +1,95 @@
-﻿#Persistent ;
+﻿#Persistent
 
-ProcessList := ["bfv.exe", "csgo.exe", "r5apex.exe"]
+; 读取ini文件
+IniRead, ProcessList, IME.ini, Settings, ProcessList
+
 CapsLocked := 0
-LoopActive := 1
+ProcessExists := 0
+LoopEnabled := 1
 
-ProcessListMsg := "当前已添加的进程有：" . "`n"
-For Each, Process in ProcessList
+ProcessListMsg := "当前已添加的程序有：`n"
+Loop, Parse, ProcessList, `,
 {
-    ProcessListMsg .= Process . "`n"
+    ProcessListMsg .= Trim(A_LoopField) . "`n"
 }
+
 MsgBox, %ProcessListMsg%
 
-MsgBox, 4, 添加进程, 是否要添加一个exe进程到ProcessList中
+MsgBox, 4, 添加程序, 是否要添加一个exe程序到列表中
 IfMsgBox, Yes
 {
-    FileSelectFile, SelectedFile, 3, , 选择exe文件
+    FileSelectFile, SelectedFile, 3, , 选择exe文件, Executable Files (*.exe)
 
-    if (SelectedFile <> "") {
+    If (SelectedFile <> "")
+    {
         loop, %SelectedFile%
           ShortName := A_LoopFileShortName
-        ; 读取文件的内容
-        FileRead, ScriptContent, IME.ahk
 
-        ; 匹配ProcessList列表
-        if (RegExMatch(ScriptContent, "(ProcessList\s*:=\s*\[)(.*)(\])", match)) {
-            ; 提取现有的ProcessList
-            existingList := match2
-
-            ; 检查选择的文件是否已经在ProcessList
-            if (!RegExMatch(existingList, "\b" . ShortName . "\b")) {
-                ; 将选择的文件名追加到ProcessList
-                newProcessList := existingList . ", " . """" . ShortName . """"
-                ; 替换原来的ProcessList
-                modifiedScriptContent := RegExReplace(ScriptContent, "(ProcessList\s*:=\s*\[)(.*)(\])", "$1" . newProcessList . "$3")
-
-                ; 写入修改后的内容回到ahk文件
-                FileDelete, IME.ahk
-                FileAppend, %modifiedScriptContent%, IME.ahk, UTF-8
-                MsgBox, 成功将 %ShortName% 添加到进程列表中！
-            } else {
-                MsgBox, 文件 %ShortName% 已经在进程列表中！
-            }
-        } else {
-            MsgBox, 在ahk文件中未找到进程列表
+        ; 是否已存在
+        If !InStr(ProcessList, ShortName)
+        {
+            ; 添加
+            ProcessList .= ", " . ShortName
+            ; 更新ini文件
+            IniWrite, %ProcessList%, IME.ini, Settings, ProcessList
+            MsgBox, %ShortName% 已添加到列表中！
         }
-    } else {
-        MsgBox, 没有选择任何文件
+        Else
+        {
+            MsgBox, %ShortName% 已经在列表中！
+        }
+    }
+    Else
+    {
+        MsgBox, 没有选择任何程序
     }
     reload
 }
 
+
 Loop
 {
-    If LoopActive
+    Sleep, 1000 ; 每秒检查一次进程状态
+    For Each, Process in StrSplit(ProcessList, ", ")
     {
-        ProcessExists := 0 ; 
+        Process, Exist, %Process% ; 检查进程是否存在
 
-        For Each, Process in ProcessList
+        If ErrorLevel ;
         {
-            Process, Exist, %Process% ; 检查进程是否存在
-
-            If ErrorLevel ; 
-            {
-                ProcessExists := 1 ; 表示至少有一个进程存在
-                Break ; 跳出循环，不再检查其他进程
-            }
-        }
-
-        If ProcessExists
-        {
-            SetCapsLockState, AlwaysOn ; 
-            CapsLocked := 1
+            ProcessExists := 1 ;
+            Break ; 跳出循环，不再检查其他进程
         }
         Else
         {
-            SetCapsLockState, Off ; 
-            CapsLocked := 0
+            ProcessExists := 0
         }
     }
+    If (ProcessExists = 1 && CapsLocked = 0) ; 检测到进程锁定大写, 按键激活后不锁定大写
+    {
+        SetCapsLockState, AlwaysOn ;
+        CapsLocked := 1
+    }
+    If (ProcessExists = 0 && CapsLocked = 1) ; 进程结束后及未检测到时关闭大写锁定
+    {
+        SetCapsLockState, Off ;
+        CapsLocked := 0
+    }
 
-    Sleep, 1000 ; 每秒检查一次进程状态
+
 }
 
 return
 
 F1::
-If !CapsLocked
-    {
-        SetCapsLockState, AlwaysOn ; 
-        CapsLocked := 1
-        LoopActive := 1 ; 
-    }
-    Else
-    {
-        SetCapsLockState, Off ; 
-        CapsLocked := 0
-        LoopActive := 0 ; 
-    }
+If LoopEnabled = 0
+{
+    SetCapsLockState, AlwaysOn ;
+    LoopEnabled := 1
+}
+Else
+{
+    SetCapsLockState, Off ;
+    LoopEnabled := 0
+}
+
 return
